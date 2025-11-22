@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Typing Game for Kids! 🎮</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Type & Learn! 🎯</h1>
+            <div class="score-container">
+                <div class="score">Score: <span id="score">0</span></div>
+                <div class="streak">Streak: <span id="streak">0</span> 🔥</div>
+            </div>
+        </header>
+
+        <main>
+            <div class="game-area">
+                <!-- Left side: Typing area -->
+                <div class="typing-section">
+                    <div class="word-container">
+                        <h2>Type this word:</h2>
+                        <div id="word-display" class="word-display"></div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div id="progress-bar" class="progress-bar"></div>
+                    </div>
+
+                    <div class="current-letter-container">
+                        <p>Press the key:</p>
+                        <div id="current-letter" class="current-letter"></div>
+                    </div>
+
+                    <div class="typed-letters">
+                        <span id="typed-text"></span>
+                    </div>
+
+                    <div class="instruction">
+                        ⌨️ Use your keyboard to type the letters!
+                    </div>
+                </div>
+
+                <!-- Right side: Result area -->
+                <div class="result-section" id="result-section">
+                    <div class="result-content">
+                        <h2>🎉 Great Job! 🎉</h2>
+                        <div class="completed-word" id="completed-word"></div>
+                        <div class="word-image-container">
+                            <img id="word-image" src="" alt="Word image">
+                        </div>
+                        <div class="word-meaning" id="word-meaning"></div>
+                        <button id="next-word-btn" class="next-btn">Next Word ➡️</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="feedback" id="feedback"></div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
