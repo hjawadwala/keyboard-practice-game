@@ -4,6 +4,8 @@ let currentLetterIndex = 0;
 let score = 0;
 let streak = 0;
 let wordData = null;
+let fetchedWords = [];
+let wordQueue = [];
 
 // Word list with meanings (fallback if API fails)
 const wordBank = [
@@ -29,13 +31,102 @@ const wordBank = [
     { word: 'rain', meaning: 'Water drops that fall from clouds in the sky!', category: 'nature' }
 ];
 
+// Common simple words for kids to fetch from API
+const simpleWordsToFetch = [
+    'apple', 'baby', 'beach', 'bread', 'car', 'chair', 'cloud', 'corn', 
+    'cup', 'desk', 'door', 'egg', 'farm', 'fire', 'food', 'game', 
+    'hand', 'hat', 'hill', 'home', 'horse', 'ice', 'jump', 'king', 
+    'lamp', 'leaf', 'milk', 'nest', 'ocean', 'park', 'pen', 'queen', 
+    'ring', 'room', 'seed', 'ship', 'shop', 'snow', 'sock', 'table', 
+    'tea', 'tent', 'time', 'town', 'train', 'water', 'wind', 'wood'
+];
+
 let usedWords = [];
 
 // Initialize game
-function init() {
+async function init() {
     updateScore();
+    
+    // Show loading message
+    console.log('🎮 Initializing game...');
+    
+    // Fetch words from internet first
+    await fetchWordsFromAPI();
+    
+    // Then load first word
     loadNewWord();
     setupEventListeners();
+}
+
+// Fetch words from Free Dictionary API
+async function fetchWordsFromAPI() {
+    console.log('🌐 Fetching words from dictionary API...');
+    
+    // Fetch multiple words
+    const promises = simpleWordsToFetch.slice(0, 20).map(async (word) => {
+        try {
+            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data[0]) {
+                    const entry = data[0];
+                    const meaning = entry.meanings[0]?.definitions[0]?.definition || 'A common word';
+                    
+                    // Simplify meaning for kids
+                    const simpleMeaning = simplifyMeaning(meaning);
+                    
+                    console.log(`✅ Fetched: ${word} - ${simpleMeaning.substring(0, 50)}...`);
+                    
+                    return {
+                        word: word,
+                        meaning: simpleMeaning,
+                        category: entry.meanings[0]?.partOfSpeech || 'word',
+                        source: 'API'
+                    };
+                }
+            }
+        } catch (error) {
+            console.log(`❌ Could not fetch word: ${word}`, error.message);
+        }
+        return null;
+    });
+    
+    const results = await Promise.all(promises);
+    fetchedWords = results.filter(w => w !== null);
+    
+    console.log(`🎉 Successfully fetched ${fetchedWords.length} words from API!`);
+    console.log('📚 Words available:', fetchedWords.map(w => w.word).join(', '));
+    
+    // Add fetched words to word queue
+    wordQueue = [...fetchedWords];
+    
+    // If we couldn't fetch enough words, add some from fallback
+    if (wordQueue.length < 5) {
+        console.log('⚠️ Not enough API words, adding fallback words');
+        const fallbackWords = wordBank.map(w => ({...w, source: 'fallback'}));
+        wordQueue = [...wordQueue, ...fallbackWords];
+    }
+    
+    return fetchedWords.length;
+}
+
+// Simplify dictionary definitions for kids
+function simplifyMeaning(meaning) {
+    // Remove complex punctuation and shorten
+    let simple = meaning
+        .replace(/\(.*?\)/g, '') // Remove parentheses
+        .replace(/;.*$/, '') // Remove everything after semicolon
+        .split('.')[0]; // Take first sentence
+    
+    // Capitalize first letter
+    simple = simple.charAt(0).toUpperCase() + simple.slice(1);
+    
+    // Ensure it ends with punctuation
+    if (!simple.endsWith('!') && !simple.endsWith('.')) {
+        simple += '!';
+    }
+    
+    return simple;
 }
 
 // Setup event listeners
@@ -45,22 +136,51 @@ function setupEventListeners() {
 }
 
 // Load a new word
-function loadNewWord() {
+async function loadNewWord() {
     // Hide result section
     document.getElementById('result-section').classList.remove('show');
     
     // Reset state
     currentLetterIndex = 0;
     
-    // Get a random word that hasn't been used recently
-    if (usedWords.length >= wordBank.length) {
-        usedWords = []; // Reset if all words have been used
+    // If word queue is running low, fetch more words
+    if (wordQueue.length < 3) {
+        console.log('🔄 Queue running low, fetching more words...');
+        await fetchWordsFromAPI();
     }
     
-    let availableWords = wordBank.filter(w => !usedWords.includes(w.word));
-    wordData = availableWords[Math.floor(Math.random() * availableWords.length)];
+    // Get a word from the queue
+    if (wordQueue.length > 0) {
+        // Remove a random word from queue
+        const randomIndex = Math.floor(Math.random() * wordQueue.length);
+        wordData = wordQueue.splice(randomIndex, 1)[0];
+        console.log(`🎯 Selected word: "${wordData.word}" from ${wordData.source || 'unknown source'}`);
+        console.log(`   Definition: ${wordData.meaning}`);
+        console.log(`   Remaining in queue: ${wordQueue.length}`);
+    } else {
+        // Fallback to local word bank
+        console.log('⚠️ Queue empty! Using fallback word bank');
+        let availableWords = wordBank.filter(w => !usedWords.includes(w.word));
+        if (availableWords.length === 0) {
+            usedWords = [];
+            availableWords = [...wordBank];
+        }
+        wordData = availableWords[Math.floor(Math.random() * availableWords.length)];
+        wordData.source = 'fallback';
+    }
+    
     currentWord = wordData.word.toLowerCase();
     usedWords.push(currentWord);
+    
+    // Update word source indicator
+    const sourceElement = document.getElementById('word-source');
+    if (wordData.source === 'API') {
+        sourceElement.textContent = '🌐 From Internet Dictionary';
+        sourceElement.className = 'word-source';
+    } else {
+        sourceElement.textContent = '📚 From Local Bank';
+        sourceElement.className = 'word-source fallback';
+    }
     
     // Display the word as boxes
     displayWord();
@@ -135,8 +255,11 @@ function updateProgress() {
 
 // Handle keyboard input
 function handleKeyPress(event) {
-    // Ignore if showing results
+    // Check if word is completed and Enter is pressed
     if (document.getElementById('result-section').classList.contains('show')) {
+        if (event.key === 'Enter') {
+            loadNewWord();
+        }
         return;
     }
     
@@ -220,44 +343,107 @@ async function completeWord() {
     showFeedback('🎉', 'correct');
 }
 
-// Fetch word image from Pexels API or use fallback images
+// Fetch word image - using emoji and SVG for reliability
 async function fetchWordImage(word) {
-    const imageElement = document.getElementById('word-image');
+    const container = document.getElementById('word-image-container');
     
-    // Map of words to specific image URLs (using reliable free image sources)
-    const imageMap = {
-        'cat': 'https://images.pexels.com/photos/45201/kitty-cat-kitten-pet-45201.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'dog': 'https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'sun': 'https://images.pexels.com/photos/301599/pexels-photo-301599.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'moon': 'https://images.pexels.com/photos/1405977/pexels-photo-1405977.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'tree': 'https://images.pexels.com/photos/268533/pexels-photo-268533.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'bird': 'https://images.pexels.com/photos/349758/hummingbird-bird-birds-349758.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'fish': 'https://images.pexels.com/photos/1125979/pexels-photo-1125979.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'star': 'https://images.pexels.com/photos/1169754/pexels-photo-1169754.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'ball': 'https://images.pexels.com/photos/274422/pexels-photo-274422.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'book': 'https://images.pexels.com/photos/159711/books-bookstore-book-reading-159711.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'bear': 'https://images.pexels.com/photos/158109/kodiak-brown-bear-adult-portrait-158109.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'frog': 'https://images.pexels.com/photos/70083/frog-macro-amphibian-green-70083.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'duck': 'https://images.pexels.com/photos/133408/pexels-photo-133408.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'lion': 'https://images.pexels.com/photos/247502/pexels-photo-247502.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'rose': 'https://images.pexels.com/photos/56866/garden-rose-red-pink-56866.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'cake': 'https://images.pexels.com/photos/140831/pexels-photo-140831.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'kite': 'https://images.pexels.com/photos/1295036/pexels-photo-1295036.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'boat': 'https://images.pexels.com/photos/163236/luxury-yacht-boat-speed-water-163236.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'bell': 'https://images.pexels.com/photos/208315/pexels-photo-208315.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop',
-        'rain': 'https://images.pexels.com/photos/125510/pexels-photo-125510.jpeg?auto=compress&cs=tinysrgb&w=400&h=400&fit=crop'
+    // Clear any existing content
+    container.innerHTML = '';
+    
+    // Map of words to emojis and colors for visual representation
+    const visualMap = {
+        'cat': { emoji: '🐱', color: '#FF9AA2', bg: '#FFE5E9' },
+        'dog': { emoji: '🐶', color: '#C7CEEA', bg: '#E8ECFF' },
+        'sun': { emoji: '☀️', color: '#FFD93D', bg: '#FFF6D5' },
+        'moon': { emoji: '🌙', color: '#B4A7D6', bg: '#E8E3F3' },
+        'tree': { emoji: '🌳', color: '#95E1D3', bg: '#D4F4E8' },
+        'bird': { emoji: '🐦', color: '#A8E6CF', bg: '#DCF5EB' },
+        'fish': { emoji: '🐠', color: '#6BC4E8', bg: '#D4F1F9' },
+        'star': { emoji: '⭐', color: '#FFD93D', bg: '#FFF6D5' },
+        'ball': { emoji: '⚽', color: '#FF9AA2', bg: '#FFE5E9' },
+        'book': { emoji: '📚', color: '#C7CEEA', bg: '#E8ECFF' },
+        'bear': { emoji: '🐻', color: '#D4A574', bg: '#F5E6D3' },
+        'frog': { emoji: '🐸', color: '#95E1D3', bg: '#D4F4E8' },
+        'duck': { emoji: '🦆', color: '#FFD93D', bg: '#FFF6D5' },
+        'lion': { emoji: '🦁', color: '#FFB347', bg: '#FFE5CC' },
+        'rose': { emoji: '🌹', color: '#FF6B9D', bg: '#FFD5E5' },
+        'cake': { emoji: '🎂', color: '#FFA5C0', bg: '#FFE5EE' },
+        'kite': { emoji: '🪁', color: '#A8E6CF', bg: '#DCF5EB' },
+        'boat': { emoji: '⛵', color: '#6BC4E8', bg: '#D4F1F9' },
+        'bell': { emoji: '🔔', color: '#FFD93D', bg: '#FFF6D5' },
+        'rain': { emoji: '🌧️', color: '#6BC4E8', bg: '#D4F1F9' },
+        // New words from API
+        'apple': { emoji: '🍎', color: '#FF6B6B', bg: '#FFD5D5' },
+        'baby': { emoji: '👶', color: '#FFA5C0', bg: '#FFE5EE' },
+        'beach': { emoji: '🏖️', color: '#FFD93D', bg: '#FFF6D5' },
+        'bread': { emoji: '🍞', color: '#D4A574', bg: '#F5E6D3' },
+        'car': { emoji: '🚗', color: '#6BC4E8', bg: '#D4F1F9' },
+        'chair': { emoji: '🪑', color: '#D4A574', bg: '#F5E6D3' },
+        'cloud': { emoji: '☁️', color: '#C7CEEA', bg: '#E8ECFF' },
+        'corn': { emoji: '🌽', color: '#FFD93D', bg: '#FFF6D5' },
+        'cup': { emoji: '☕', color: '#D4A574', bg: '#F5E6D3' },
+        'desk': { emoji: '🪑', color: '#D4A574', bg: '#F5E6D3' },
+        'door': { emoji: '🚪', color: '#D4A574', bg: '#F5E6D3' },
+        'egg': { emoji: '🥚', color: '#FFF6D5', bg: '#FFFEF0' },
+        'farm': { emoji: '🚜', color: '#95E1D3', bg: '#D4F4E8' },
+        'fire': { emoji: '🔥', color: '#FF6B6B', bg: '#FFD5D5' },
+        'food': { emoji: '🍽️', color: '#FFA5C0', bg: '#FFE5EE' },
+        'game': { emoji: '🎮', color: '#C7CEEA', bg: '#E8ECFF' },
+        'hand': { emoji: '✋', color: '#FFA5C0', bg: '#FFE5EE' },
+        'hat': { emoji: '🎩', color: '#C7CEEA', bg: '#E8ECFF' },
+        'hill': { emoji: '⛰️', color: '#95E1D3', bg: '#D4F4E8' },
+        'home': { emoji: '🏠', color: '#FF9AA2', bg: '#FFE5E9' },
+        'horse': { emoji: '🐴', color: '#D4A574', bg: '#F5E6D3' },
+        'ice': { emoji: '🧊', color: '#6BC4E8', bg: '#D4F1F9' },
+        'jump': { emoji: '🤾', color: '#FFA5C0', bg: '#FFE5EE' },
+        'king': { emoji: '👑', color: '#FFD93D', bg: '#FFF6D5' },
+        'lamp': { emoji: '💡', color: '#FFD93D', bg: '#FFF6D5' },
+        'leaf': { emoji: '🍃', color: '#95E1D3', bg: '#D4F4E8' },
+        'milk': { emoji: '🥛', color: '#FFF6D5', bg: '#FFFEF0' },
+        'nest': { emoji: '🪺', color: '#D4A574', bg: '#F5E6D3' },
+        'ocean': { emoji: '🌊', color: '#6BC4E8', bg: '#D4F1F9' },
+        'park': { emoji: '🏞️', color: '#95E1D3', bg: '#D4F4E8' },
+        'pen': { emoji: '🖊️', color: '#C7CEEA', bg: '#E8ECFF' },
+        'queen': { emoji: '👸', color: '#FFA5C0', bg: '#FFE5EE' },
+        'ring': { emoji: '💍', color: '#FFD93D', bg: '#FFF6D5' },
+        'room': { emoji: '🛏️', color: '#C7CEEA', bg: '#E8ECFF' },
+        'seed': { emoji: '🌱', color: '#95E1D3', bg: '#D4F4E8' },
+        'ship': { emoji: '🚢', color: '#6BC4E8', bg: '#D4F1F9' },
+        'shop': { emoji: '🏪', color: '#FF9AA2', bg: '#FFE5E9' },
+        'snow': { emoji: '❄️', color: '#C7CEEA', bg: '#E8ECFF' },
+        'sock': { emoji: '🧦', color: '#FFA5C0', bg: '#FFE5EE' },
+        'table': { emoji: '🪑', color: '#D4A574', bg: '#F5E6D3' },
+        'tea': { emoji: '🍵', color: '#95E1D3', bg: '#D4F4E8' },
+        'tent': { emoji: '⛺', color: '#FF9AA2', bg: '#FFE5E9' },
+        'time': { emoji: '⏰', color: '#C7CEEA', bg: '#E8ECFF' },
+        'town': { emoji: '🏘️', color: '#FFB347', bg: '#FFE5CC' },
+        'train': { emoji: '🚂', color: '#6BC4E8', bg: '#D4F1F9' },
+        'water': { emoji: '💧', color: '#6BC4E8', bg: '#D4F1F9' },
+        'wind': { emoji: '💨', color: '#C7CEEA', bg: '#E8ECFF' },
+        'wood': { emoji: '🪵', color: '#D4A574', bg: '#F5E6D3' }
     };
     
-    // Use mapped image or fallback
-    const imageUrl = imageMap[word] || `https://via.placeholder.com/400x400/667eea/ffffff?text=${word.toUpperCase()}`;
+    const visual = visualMap[word] || { emoji: '❓', color: '#667eea', bg: '#E8ECFF' };
     
-    imageElement.src = imageUrl;
-    imageElement.alt = word;
+    // Create a beautiful emoji display
+    const emojiDisplay = document.createElement('div');
+    emojiDisplay.className = 'emoji-display';
+    emojiDisplay.style.cssText = `
+        width: 300px;
+        height: 300px;
+        background: ${visual.bg};
+        border: 5px solid ${visual.color};
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 180px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        animation: emojiPop 0.5s ease-out;
+    `;
+    emojiDisplay.textContent = visual.emoji;
     
-    // Handle image load error
-    imageElement.onerror = function() {
-        this.src = `https://via.placeholder.com/400x400/667eea/ffffff?text=${word.toUpperCase()}`;
-    };
+    container.appendChild(emojiDisplay);
 }
 
 // Update score display

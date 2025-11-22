@@ -82,6 +82,22 @@ main {
     font-size: 1.8em;
 }
 
+.word-source {
+    display: inline-block;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.9em;
+    margin-bottom: 15px;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.word-source.fallback {
+    background: linear-gradient(135deg, #ff9aa2 0%, #ff6b9d 100%);
+}
+
 .word-display {
     display: flex;
     justify-content: center;
@@ -303,6 +319,13 @@ main {
     transform: translateY(-1px);
 }
 
+.enter-hint {
+    margin-top: 10px;
+    color: #666;
+    font-size: 1em;
+    font-style: italic;
+}
+
 .feedback {
     position: fixed;
     top: 50%;
@@ -408,6 +431,20 @@ main {
     }
     50% {
         box-shadow: 0 8px 30px rgba(255, 107, 107, 0.8);
+    }
+}
+
+@keyframes emojiPop {
+    0% {
+        transform: scale(0.5) rotate(-10deg);
+        opacity: 0;
+    }
+    70% {
+        transform: scale(1.1) rotate(5deg);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 1;
     }
 }
 
