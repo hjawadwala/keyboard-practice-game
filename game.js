@@ -96,6 +96,34 @@ function updateCurrentLetter() {
                 box.classList.add('current');
             }
         });
+        
+        // Highlight the key on virtual keyboard
+        highlightKey(currentLetter);
+    }
+}
+
+// Highlight key on virtual keyboard
+function highlightKey(letter) {
+    // Remove all highlights
+    document.querySelectorAll('.key').forEach(key => {
+        key.classList.remove('highlight');
+    });
+    
+    // Highlight the current key
+    const keyElement = document.querySelector(`.key[data-key="${letter}"]`);
+    if (keyElement) {
+        keyElement.classList.add('highlight');
+    }
+}
+
+// Show key press animation
+function animateKeyPress(letter) {
+    const keyElement = document.querySelector(`.key[data-key="${letter}"]`);
+    if (keyElement) {
+        keyElement.classList.add('pressed');
+        setTimeout(() => {
+            keyElement.classList.remove('pressed');
+        }, 200);
     }
 }
 
@@ -128,6 +156,9 @@ function handleKeyPress(event) {
 function handleCorrectKey() {
     // Show correct feedback
     showFeedback('✓', 'correct');
+    
+    // Animate key press on virtual keyboard
+    animateKeyPress(currentWord[currentLetterIndex]);
     
     // Mark letter as typed
     document.getElementById(`letter-${currentLetterIndex}`).classList.add('typed');
